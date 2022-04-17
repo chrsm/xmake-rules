@@ -1,0 +1,47 @@
+-- example rule for yuescript (moonscript improvement);
+-- assumes files under `(repo-root)src/`
+macro raw = (code) ->
+  { :code, type: "lua" }
+
+rule "yue"
+do
+  set_extensions ".yue"
+
+  on_build_file (target, src, opt) ->
+    -- prevent conflict w/yue's import statement
+    $raw[[
+      import("core.project.depend")
+      import("utils.progress")
+    ]]
+
+    reldir = path.directory (path.relative src, "src")
+    if reldir == "."
+      reldir = ""
+
+    dir = path.join target\targetdir!, reldir
+    file = path.join dir, (path.basename src) .. ".lua"
+    relpath = path.relative src, "src"
+    os.mkdir dir
+
+    depend.on_changed (() ->
+      absfile = path.absolute file
+      old = os.cd "src"
+
+      os.setenv "LUA_PATH", "./?.lua;./?/init.lua"
+      os.vrunv "yue", { "-l", "-s", "-o", absfile, relpath }
+
+      os.cd old
+
+      progress.show opt.progress, "${ color.build.object }yue %s", src
+    ), { files: src }
+
+--[[
+example use:
+
+target "build"
+do
+  set_kind "object"
+
+  add_rules "yue"
+  add_files "src/**.yue"
+]]
