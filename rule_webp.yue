@@ -1,0 +1,53 @@
+-- example rule for img->webp via cwebp
+-- webp has good quality with small size
+macro raw = (code) ->
+  { :code, type: "lua" }
+
+rule 'webp'
+do
+  set_extensions '.png', '.jpg', '.jpeg'
+  on_link () -> nil
+  on_build_file (target, file, opt) ->
+    $raw[[-- $raw
+      import('core.project.depend')
+      import('utils.progress')
+    ]]
+
+    reldir = path.directory (path.relative file, 'pathypath')
+    if reldir == '.'
+      reldir = ''
+
+    dir = path.join target\targetdir!, reldir
+    relpath = path.relative file, 'pathypath'
+
+    depend.on_changed (->
+      -- out must be renamed
+      ext = path.extension relpath
+      relpath = relpath\sub 1, #relpath-#ext
+      relpath ..= '.webp'
+
+      os.mkdir path.directory (path.join (path.join target\targetdir!, 'images'), relpath)
+
+      os.vrunv 'cwebp', {
+        file,
+        '-resize', '1920', '1080',
+        '-z', '7',
+        '-o', (path.join (path.join target\targetdir!, 'images'), relpath)
+      }
+
+      -- os.cp file, (path.join target\targetdir!, relpath)
+      progress.show opt.progress, '${ color.build.object }cwebp %s', relpath
+    ), { files: file }
+
+--[[
+example use:
+
+target 'assets'
+do
+  set_kind 'object'
+  add_rules 'webp'
+
+  add_files 'pathypath/**.png'
+  add_files 'pathypath/**.jpg'
+  add_files 'pathypath/**.jpeg'
+]]
